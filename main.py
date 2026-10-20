@@ -4,8 +4,8 @@
     venv/bin/python main.py 6v
     venv/bin/python main.py          # lists the available exercises
 
-The names match the numbering in the TP PDF. Exercise 3 (nglview) is
-interactive and lives in ex3_nglview.ipynb instead.
+The names match the numbering in the TP PDF. The 3D views are interactive
+and live in notebooks instead: ex3_nglview, ex5_superposicion, ex6_vecinos.
 """
 
 import sys
@@ -26,6 +26,7 @@ EXERCISES = {
     "6iv":   ex6.iv,      # vecinos polares / no polares en esferas
     "6v":    ex6.v,       # vecinos vs pKa de Asp
     "7":     ex7.run,     # adenilato quinasa abierta vs cerrada
+    "7-diedros": ex7.dihedral_explainer,  # figura que explica cómo leer los diedros
     "8":     ex8.run,     # SERCA, los tres pares
     "9":     ex9.run,     # shadow contact map
 }

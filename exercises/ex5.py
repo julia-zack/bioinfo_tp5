@@ -1,17 +1,18 @@
 """Ejercicio 5: superponer dos mioglobinas homólogas.
 
 Referencia: 1A6M (cachalote). Móvil: 3RGK (humana, mutante K45R).
-Las dos secuencias no tienen el mismo largo ni la misma numeración, así que
-los CA equivalentes no se pueden emparejar por número de residuo: se
-emparejan por un alineamiento de secuencia. PairwiseAligner se usa acá como
-herramienta (el TP no pide implementar el alineamiento).
+Los CA equivalentes se emparejan con un alineamiento de secuencia, que no
+supone nada sobre la numeración de cada archivo. PairwiseAligner se usa acá
+como herramienta (el TP no pide implementar el alineamiento). En este par
+particular la numeración coincide, y run() verifica que emparejar por número
+de residuo da exactamente los mismos pares.
 """
 
 from Bio.Align import PairwiseAligner, substitution_matrices
 from Bio.PDB import PDBIO
 
 from geometry import rmsd, superimpose
-from structures import amino_residues, load, out_path, sequence
+from structures import amino_residues, ca_atoms, load, out_path, sequence
 
 REF, MOBILE, CHAIN = "1A6M", "3RGK", "A"
 
@@ -41,6 +42,13 @@ def run():
 
     print(aln)
     print(f"pares de CA equivalentes: {len(pairs)}  identidad: {identical / len(pairs):.1%}")
+
+    # Control: emparejar por número de residuo (sin alinear) tiene que dar los
+    # mismos pares; si no, la numeración de los archivos no es comparable.
+    by_number = sorted({a.get_parent().id[1] for a in ca_atoms(ref[0][CHAIN])}
+                       & {a.get_parent().id[1] for a in ca_atoms(mob[0][CHAIN])})
+    same = by_number == [r.get_parent().id[1] for r in ref_ca] == [m.get_parent().id[1] for m in mob_ca]
+    print(f"emparejar por número de residuo da los mismos {len(by_number)} pares: {same}")
     print(f"RMSD antes de superponer (coordenadas crudas): {rmsd(ref_ca, mob_ca):7.2f} A")
 
     sup = superimpose(ref_ca, mob_ca, mob)

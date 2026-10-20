@@ -15,7 +15,7 @@ import numpy as np
 
 from contacts import cutoff_map, shadow_map
 from pairs import MIN_SEQ_SEP
-from plots import difference_map
+from plots import kept_removed_map
 from structures import ca_atoms, load
 
 PDB_ID, CHAIN = "1AKE", "A"
@@ -46,9 +46,13 @@ def run():
     fig, axes = plt.subplots(2, 2, figsize=(12, 12))
     for ax, s in zip(axes.flat, SHADOW_RADII):
         sh = shadow_map(coords, resseq, cutoff, s, MIN_SEQ_SEP)
-        difference_map(ax, sh, cut, resseq, "shadow", "cutoff",
-                       f"S = {s:g} Å, C = {cutoff:g} Å: quedan {sh.sum() // 2} de {cut.sum() // 2}")
-    fig.suptitle(f"{PDB_ID} (CA): gris = contacto en ambos mapas, azul = eliminado por sombra")
+        # La sombra solo puede sacar contactos: si apareciera uno que no está en el corte simple, es un error.
+        assert not (sh & ~cut).any(), "el mapa shadow tiene contactos que el de corte no tiene"
+        kept_removed_map(ax, sh, cut, resseq,
+                         f"S = {s:g} Å, C = {cutoff:g} Å: quedan {sh.sum() // 2} de {cut.sum() // 2}",
+                         "quedan con la sombra", "eliminados por la sombra")
+    fig.suptitle(f"{PDB_ID} (CA): contactos del corte por distancia que quedan (azul) "
+                 f"o elimina (gris claro) el método de la sombra")
     fig.tight_layout()
     fig.savefig(FIGS / "ex9_shadow_vs_cutoff.png", dpi=150)
     print("figura: exercises/ex9_shadow_vs_cutoff.png")

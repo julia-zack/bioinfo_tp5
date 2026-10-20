@@ -6,7 +6,8 @@ Proteínas: las dos de la tabla del punto v, cadena A de cada una.
 
 La SASA se calcula sobre la cadena sola, sin aguas, ligandos ni hidrógenos:
 el agua cristalográfica y la otra cadena del cristal taparían superficie que
-en solución está expuesta, y los H inflarían la SASA de 1LSE respecto a 1LNI.
+en solución está expuesta, y 1LSE trae H que 1LNI no tiene, así que se sacan
+para medir las dos igual (medido: dejarlos sube la SASA de 1LSE solo un 1%).
 """
 
 from functools import cache
@@ -28,6 +29,12 @@ CONTACT_MIN_SEP = 3      # |i-j| >= 3: los vecinos i+-1, i+-2 están siempre "en
 RADII = [6.0, 8.0, 10.0, 12.0]
 CLASSES = {"polar": POLAR, "nopolar": NONPOLAR}
 ASP_REF_PKA = 4.0
+PLOT_RADIUS = 8.0        # A, radio de los gráficos de 6v (el de 6ii y del notebook)
+PLOT_KIND = "CB"         # punto de los gráficos con rectas de 6v
+# Misma convención en todo el TP (y en los notebooks): color = grupo de vecinos,
+# forma = proteína.
+GROUP_COLORS = {"polar": "tab:blue", "nopolar": "tab:orange"}
+PROTEIN_MARKERS = {"1LNI": "o", "1LSE": "s"}
 
 # (pdb, residuo, pKa experimental) — tabla de la consigna
 PKA = [("1LNI", 17, 3.72), ("1LNI", 25, 4.87), ("1LNI", 33, 2.39), ("1LNI", 79, 7.37),
@@ -40,6 +47,41 @@ MAX_ASA = dict(A=129, R=274, N=195, D=193, C=167, Q=225, E=223, G=104, H=224, I=
                L=201, K=236, M=224, F=240, P=159, S=155, T=172, W=285, Y=263, V=174)
 
 FIGS = __import__("pathlib").Path(__file__).parent
+
+
+def trend_lines(rows, kind=PLOT_KIND, radius=PLOT_RADIUS):
+    """Polar and nonpolar neighbours vs pKa on the same axes, each with its
+    least-squares line (the "X"), with all 13 Asp and without Asp79 of 1LNI,
+    to show how much the picture depends on that one residue."""
+    without_79 = rows[~((rows.pdb == "1LNI") & (rows.resseq == 79))]
+    groups = (("polar", "polares", GROUP_COLORS["polar"]), ("nopolar", "no polares", GROUP_COLORS["nopolar"]))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharey=True, sharex=True)
+    print(f"\nrectas de tendencia ({kind}, {radius:g} Å): pendiente = cambio de pKa por vecino")
+    for ax, (data, title) in zip(axes, ((rows, f"los {len(rows)} Asp"), (without_79, "sin el Asp79 de 1LNI"))):
+        for cls, label, color in groups:
+            x, y = data[f"{cls}_{kind}_{radius:g}"], data.pka_exp
+            slope, intercept = np.polyfit(x, y, 1)
+            for pdb_id, marker in PROTEIN_MARKERS.items():
+                sel = data.pdb == pdb_id
+                ax.scatter(x[sel], y[sel], color=color, marker=marker, s=30, alpha=0.7,
+                           label=f"vecinos {label} ({pdb_id})")
+            for xi, yi, n in zip(x, y, data.resseq):
+                ax.annotate(str(n), (xi, yi), textcoords="offset points", xytext=(4, 3),
+                            fontsize=7, color=color)
+            xs = np.array([0, rows[f"{cls}_{kind}_{radius:g}"].max()])
+            ax.plot(xs, intercept + slope * xs, color=color, lw=2)
+            print(f"  {title:22} {label:11} pendiente {slope:+.2f}")
+        ax.axhline(ASP_REF_PKA, color="0.6", ls="--", lw=0.8)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel(f"nº de vecinos (desde {kind}, radio {radius:g} Å)")
+    axes[0].set_ylabel("pKa medido (línea punteada: referencia 4)")
+    axes[0].legend(fontsize=7)
+    fig.suptitle("Tendencia de polares y no polares (cada Asp aparece dos veces: una por grupo; "
+                 "círculo 1LNI, cuadrado 1LSE)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(FIGS / "ex6_vecinos_vs_pka_rectas.png", dpi=150)
+    plt.close(fig)
+    print("figura: exercises/ex6_vecinos_vs_pka_rectas.png")
 
 
 def bare_chain(pdb_id, chain_id):
@@ -141,6 +183,43 @@ def iv():
                                               names=["clase", "repr", "radio"])
     print(summary.unstack("clase").sort_index().to_string())
 
+    # Cómo crecen los vecinos con el radio. Un panel por punto de medición: la
+    # línea es el promedio de los aminoácidos y la banda, la mitad central
+    # (percentiles 25 a 75), para ver cuánto varían entre sí. El último panel
+    # compara el crecimiento con el del volumen de la esfera.
+    kind_styles = {"CA": ("-", "o"), "CB": ("--", "s"), "CM": (":", "^")}
+    radii = np.array(RADII)
+    fig, axes = plt.subplots(len(PROTEINS), len(KINDS) + 1, figsize=(16, 8), sharex=True)
+    for (pdb_id, sub), row in zip(df.groupby("pdb"), axes):
+        ax_rel = row[-1]
+        for ax, (kind, (ls, marker)) in zip(row, kind_styles.items()):
+            for cls, label in (("polar", "polares"), ("nopolar", "no polares")):
+                values = [sub[f"{cls}_{kind}_{r:g}"] for r in RADII]
+                ax.plot(radii, [v.mean() for v in values], ls=ls, marker=marker,
+                        color=GROUP_COLORS[cls], label=f"{label} (promedio)")
+                ax.fill_between(radii, [v.quantile(0.25) for v in values], [v.quantile(0.75) for v in values],
+                                color=GROUP_COLORS[cls], alpha=0.2, label=f"{label} (mitad central)")
+            ax.set_title(f"{pdb_id}, desde {kind}: vecinos por aminoácido ({len(sub)} aa)", fontsize=9)
+            total = np.array([(sub[f"polar_{kind}_{r:g}"] + sub[f"nopolar_{kind}_{r:g}"]).mean()
+                              for r in RADII])
+            ax_rel.plot(radii, total / total[0], ls=ls, marker=marker, color="0.25", label=f"desde {kind}")
+        ax_rel.plot(radii, (radii / radii[0]) ** 3, color="tab:red", ls="--", lw=1,
+                    label="si crecieran con el volumen, (r/6)³")
+        ax_rel.set_title(f"{pdb_id}: crecimiento del promedio (relativo a 6 Å)", fontsize=9)
+        ax_rel.set_ylabel("veces lo que hay a 6 Å")
+        row[0].set_ylabel("nº de vecinos")
+        for ax in row[1:len(KINDS)]:
+            ax.sharey(row[0])
+    for ax in axes[-1]:
+        ax.set_xlabel("radio de la esfera (Å)")
+        ax.set_xticks(radii)
+    axes[0][0].legend(fontsize=7)
+    axes[0][-1].legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(FIGS / "ex6_vecinos_vs_radio.png", dpi=150)
+    plt.close(fig)
+    print("figura: exercises/ex6_vecinos_vs_radio.png")
+
 
 def pka_table():
     df = all_residues().set_index(["pdb", "resseq"])
@@ -170,15 +249,28 @@ def v():
     rsa = spearmanr(rows.rsa, rows.dpka)
     print(f"\nreferencia: Spearman(SASA relativa, ΔpKa) = {rsa.statistic:.2f} (p={rsa.pvalue:.2f})")
 
-    pivot = corr.pivot_table(index="clase", columns=["repr", "radio"], values="rho")
-    fig, ax = plt.subplots(figsize=(11, 2.8))
-    im = ax.imshow(pivot.values, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
-    ax.set_xticks(range(pivot.shape[1]), [f"{k}\n{r:g} Å" for k, r in pivot.columns], fontsize=8)
-    ax.set_yticks(range(pivot.shape[0]), pivot.index)
-    for (y, x), val in np.ndenumerate(pivot.values):
-        ax.text(x, y, f"{val:.2f}", ha="center", va="center", fontsize=8)
-    ax.set_title(f"ρ de Spearman: nº de vecinos vs ΔpKa de Asp (n={len(rows)}, 1LNI+1LSE)")
-    fig.colorbar(im, ax=ax, label="ρ")
+    trend_lines(rows)
+
+    # Gráfico de los datos (no de las correlaciones): un punto por aspártico.
+    # Un solo radio, fijado de antemano (el mismo de 6ii y del notebook), para
+    # no elegir el que mejor correlaciona.
+    radius = PLOT_RADIUS
+    fig, axes = plt.subplots(len(CLASSES), len(KINDS), figsize=(12, 7), sharey=True)
+    for row, (cls, label) in zip(axes, (("polar", "polares"), ("nopolar", "no polares"))):
+        for ax, kind in zip(row, KINDS):
+            for pdb_id, sub in rows.groupby("pdb"):
+                x = sub[f"{cls}_{kind}_{radius:g}"]
+                ax.scatter(x, sub.pka_exp, color=GROUP_COLORS[cls], marker=PROTEIN_MARKERS[pdb_id],
+                           s=30, label=pdb_id)
+                for xi, yi, n in zip(x, sub.pka_exp, sub.resseq):
+                    ax.annotate(str(n), (xi, yi), textcoords="offset points", xytext=(4, 3), fontsize=7)
+            ax.axhline(ASP_REF_PKA, color="0.6", ls="--", lw=0.8)
+            ax.set_title(f"vecinos {label}, medidos desde {kind}", fontsize=10)
+            ax.set_xlabel(f"nº de vecinos {label} (radio {radius:g} Å)")
+        row[0].set_ylabel("pKa medido (línea: referencia 4)")
+    axes[0][0].legend(fontsize=8, loc="upper left")   # círculo 1LNI, cuadrado 1LSE
+    fig.suptitle(f"Asp de la tabla (n={len(rows)}): pKa medido vs número de vecinos", fontsize=11)
     fig.tight_layout()
     fig.savefig(FIGS / "ex6_vecinos_vs_pka.png", dpi=150)
+    plt.close(fig)
     print("figura: exercises/ex6_vecinos_vs_pka.png")
