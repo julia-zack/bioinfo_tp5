@@ -16,7 +16,7 @@ import numpy as np
 from contacts import cutoff_map, shadow_map
 from pairs import MIN_SEQ_SEP
 from plots import kept_removed_map
-from structures import ca_atoms, load
+from structures import ca_atoms, load, rel
 
 PDB_ID, CHAIN = "1AKE", "A"
 SHADOW_RADII = [0.5, 1.0, 2.0, 3.0]   # A
@@ -55,4 +55,4 @@ def run():
                  f"o elimina (gris claro) el método de la sombra")
     fig.tight_layout()
     fig.savefig(FIGS / "ex9_shadow_vs_cutoff.png", dpi=150)
-    print("figura: exercises/ex9_shadow_vs_cutoff.png")
+    print(f"figura: {rel(FIGS / 'ex9_shadow_vs_cutoff.png')}")

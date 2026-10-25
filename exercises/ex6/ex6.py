@@ -20,7 +20,7 @@ from Bio.SeqUtils import seq1
 from scipy.stats import pearsonr, spearmanr
 
 from contacts import NONPOLAR, POLAR, cutoff_map, neighbor_counts, residue_points
-from structures import OUT, is_amino, load
+from structures import OUT, is_amino, load, rel
 
 PROTEINS = {"1LNI": "A", "1LSE": "A"}
 KINDS = ["CA", "CB", "CM"]
@@ -49,18 +49,36 @@ MAX_ASA = dict(A=129, R=274, N=195, D=193, C=167, Q=225, E=223, G=104, H=224, I=
 FIGS = __import__("pathlib").Path(__file__).parent
 
 
+# Aspárticos cuya ausencia cambia mucho alguna de las rectas de 6v: (pdb, residuo, grupo afectado)
+INFLUENTIAL = [("1LNI", 79, "nopolar"), ("1LSE", 66, "polar"), ("1LSE", 52, "polar")]
+
+
 def trend_lines(rows, kind=PLOT_KIND, radius=PLOT_RADIUS):
     """Polar and nonpolar neighbours vs pKa on the same axes, each with its
-    least-squares line (the "X"), with all 13 Asp and without Asp79 of 1LNI,
-    to show how much the picture depends on that one residue."""
-    without_79 = rows[~((rows.pdb == "1LNI") & (rows.resseq == 79))]
+    least-squares line (the "X"): with all 13 Asp, and once without each of the
+    residues that move a line the most, to show how fragile the trends are.
+    In the "without" panels the lines for all 13 are drawn dotted for reference
+    and the removed residue is marked with a cross."""
     groups = (("polar", "polares", GROUP_COLORS["polar"]), ("nopolar", "no polares", GROUP_COLORS["nopolar"]))
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharey=True, sharex=True)
+    names = {"polar": "polares", "nopolar": "no polares"}
+    col = lambda cls: f"{cls}_{kind}_{radius:g}"
+
+    def fit(data, cls):
+        return np.polyfit(data[col(cls)], data.pka_exp, 1)
+
+    full = {cls: fit(rows, cls) for cls, _, _ in groups}
+    panels = [(rows, f"los {len(rows)} Asp", None, None)]
+    for pdb_id, resseq, cls in INFLUENTIAL:
+        drop = (rows.pdb == pdb_id) & (rows.resseq == resseq)
+        panels.append((rows[~drop], f"sin el Asp{resseq} de {pdb_id} (mirar la recta de los {names[cls]})",
+                       rows[drop], cls))
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharey=True, sharex=True)
     print(f"\nrectas de tendencia ({kind}, {radius:g} Å): pendiente = cambio de pKa por vecino")
-    for ax, (data, title) in zip(axes, ((rows, f"los {len(rows)} Asp"), (without_79, "sin el Asp79 de 1LNI"))):
+    for ax, (data, title, removed, changed) in zip(axes.flat, panels):
         for cls, label, color in groups:
-            x, y = data[f"{cls}_{kind}_{radius:g}"], data.pka_exp
-            slope, intercept = np.polyfit(x, y, 1)
+            x, y = data[col(cls)], data.pka_exp
+            slope, intercept = fit(data, cls)
             for pdb_id, marker in PROTEIN_MARKERS.items():
                 sel = data.pdb == pdb_id
                 ax.scatter(x[sel], y[sel], color=color, marker=marker, s=30, alpha=0.7,
@@ -68,20 +86,28 @@ def trend_lines(rows, kind=PLOT_KIND, radius=PLOT_RADIUS):
             for xi, yi, n in zip(x, y, data.resseq):
                 ax.annotate(str(n), (xi, yi), textcoords="offset points", xytext=(4, 3),
                             fontsize=7, color=color)
-            xs = np.array([0, rows[f"{cls}_{kind}_{radius:g}"].max()])
+            xs = np.array([0, rows[col(cls)].max()])
             ax.plot(xs, intercept + slope * xs, color=color, lw=2)
-            print(f"  {title:22} {label:11} pendiente {slope:+.2f}")
+            if removed is not None:
+                if cls == changed:          # reference line only for the group whose line changes
+                    full_slope, full_intercept = full[cls]
+                    ax.plot(xs, full_intercept + full_slope * xs, color=color, lw=1, ls=":")
+                ax.scatter(removed[col(cls)], removed.pka_exp, marker="x", s=80, color=color, lw=2)
+            print(f"  {title.split(' (')[0]:22} {label:11} pendiente {slope:+.2f}")
         ax.axhline(ASP_REF_PKA, color="0.6", ls="--", lw=0.8)
         ax.set_title(title, fontsize=10)
+    for ax in axes[1]:
         ax.set_xlabel(f"nº de vecinos (desde {kind}, radio {radius:g} Å)")
-    axes[0].set_ylabel("pKa medido (línea punteada: referencia 4)")
-    axes[0].legend(fontsize=7)
-    fig.suptitle("Tendencia de polares y no polares (cada Asp aparece dos veces: una por grupo; "
-                 "círculo 1LNI, cuadrado 1LSE)", fontsize=10)
+    for ax in axes[:, 0]:
+        ax.set_ylabel("pKa medido (línea gris: referencia 4)")
+    axes[0][0].legend(fontsize=7)
+    fig.suptitle("Tendencia de polares y no polares (cada Asp aparece dos veces: una por grupo; círculo 1LNI, "
+                 "cuadrado 1LSE).\nEn los paneles \"sin\": punteado = cómo era con los 13 la recta que cambia; cruz = el Asp que se sacó",
+                 fontsize=10)
     fig.tight_layout()
     fig.savefig(FIGS / "ex6_vecinos_vs_pka_rectas.png", dpi=150)
     plt.close(fig)
-    print("figura: exercises/ex6_vecinos_vs_pka_rectas.png")
+    print(f"figura: {rel(FIGS / 'ex6_vecinos_vs_pka_rectas.png')}")
 
 
 def bare_chain(pdb_id, chain_id):
@@ -170,7 +196,7 @@ def iii():
         row[0].set_ylabel("SASA relativa")
     fig.tight_layout()
     fig.savefig(FIGS / "ex6_contactos_vs_sasa.png", dpi=150)
-    print("figura: exercises/ex6_contactos_vs_sasa.png")
+    print(f"figura: {rel(FIGS / 'ex6_contactos_vs_sasa.png')}")
 
 
 def iv():
@@ -218,7 +244,7 @@ def iv():
     fig.tight_layout()
     fig.savefig(FIGS / "ex6_vecinos_vs_radio.png", dpi=150)
     plt.close(fig)
-    print("figura: exercises/ex6_vecinos_vs_radio.png")
+    print(f"figura: {rel(FIGS / 'ex6_vecinos_vs_radio.png')}")
 
 
 def pka_table():
@@ -273,4 +299,4 @@ def v():
     fig.tight_layout()
     fig.savefig(FIGS / "ex6_vecinos_vs_pka.png", dpi=150)
     plt.close(fig)
-    print("figura: exercises/ex6_vecinos_vs_pka.png")
+    print(f"figura: {rel(FIGS / 'ex6_vecinos_vs_pka.png')}")

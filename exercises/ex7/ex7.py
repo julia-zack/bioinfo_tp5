@@ -9,7 +9,7 @@ import numpy as np
 from geometry import ca_dihedrals
 from pairs import compare
 from plots import SS_COLORS, dihedral_kind, dihedral_panel
-from structures import ca_atoms, load, secondary_structure
+from structures import OUT, ca_atoms, load, rel, secondary_structure
 
 CLOSED, OPEN = "1AKE", "4AKE"
 LABELS = {CLOSED: "cerrada", OPEN: "abierta"}
@@ -89,7 +89,7 @@ def dihedral_explainer():
     fig.savefig(Path(__file__).parent / "ex7_diedros_explicacion.png", dpi=150)
     plt.close(fig)
     path = Path(__file__).parent / "ex7_diedros_explicacion.png"
-    print("figura: exercises/ex7_diedros_explicacion.png")
+    print(f"figura: {rel(Path(__file__).parent / 'ex7_diedros_explicacion.png')}")
 
 
 def contact_changes():
@@ -99,7 +99,7 @@ def contact_changes():
     threshold) and coloured by the domains of the pair."""
     import json
     from pairs import PAPER_MIN_RATIO, CUTOFF
-    result = json.loads((Path(__file__).parents[1] / "data" / "out" / f"ex7_{CLOSED}_{OPEN}.json").read_text())
+    result = json.loads((OUT / f"ex7_{CLOSED}_{OPEN}.json").read_text())
     ca = {p: {a.get_parent().id[1]: a for a in ca_atoms(load(p)[0]["A"])} for p in (CLOSED, OPEN)}
     paper = {tuple(x) for x in result["solo_segun_trabajo"][CLOSED]}
     dom = lambda n: next(d for d, rng in DOMAINS.items() if n in rng)
@@ -138,4 +138,4 @@ def contact_changes():
     path = Path(__file__).parent / "ex7_cambio_contactos.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
-    print(f"figura: exercises/{path.name}")
+    print(f"figura: {rel(path)}")

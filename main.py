@@ -5,12 +5,20 @@
     venv/bin/python main.py          # lists the available exercises
 
 The names match the numbering in the TP PDF. The 3D views are interactive
-and live in notebooks instead: ex3_nglview, ex5_superposicion, ex6_vecinos.
+and live in notebooks instead: ex3_nglview, ex5_superposicion, ex6_vecinos,
+ex7_visualizacion.
 """
 
 import sys
 
-from exercises import ex1, ex2, ex4, ex5, ex6, ex7, ex8, ex9
+from exercises.ex1 import ex1
+from exercises.ex2 import ex2
+from exercises.ex4 import ex4
+from exercises.ex5 import ex5
+from exercises.ex6 import ex6
+from exercises.ex7 import ex7
+from exercises.ex8 import ex8
+from exercises.ex9 import ex9
 
 EXERCISES = {
     "1":     ex1.run,     # cargar PDB y mmCIF, explorar el header

@@ -11,7 +11,7 @@ import numpy as np
 from contacts import contact_pairs, cutoff_map, distance_matrix
 from geometry import ca_angles, ca_dihedrals
 from plots import dihedral_panel, difference_map, secondary_structure_bands
-from structures import OUT, ca_atoms, load, secondary_structure
+from structures import OUT, ca_atoms, load, rel, secondary_structure
 
 # Parámetros de contacto (CA): explícitos y guardados junto con los resultados.
 CUTOFF = 8.0          # A
@@ -114,7 +114,7 @@ def _figures(figs_dir, stem, name_a, name_b, resseq, map_a, map_b,
         path = figs_dir / f"{stem}_{suffix}.png"
         fig.savefig(path, dpi=150)
         plt.close(fig)
-        print(f"figura: exercises/{path.name}")
+        print(f"figura: {rel(path)}")
 
     fig, ax = plt.subplots(figsize=(10, 9.5), layout="constrained")
     difference_map(ax, map_a, map_b, resseq, shown_a, shown_b,

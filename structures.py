@@ -13,7 +13,8 @@ from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from Bio.SeqUtils import seq1
 
-DATA = Path(__file__).parent / "data"
+ROOT = Path(__file__).parent
+DATA = ROOT / "data"
 OUT = DATA / "out"
 RCSB = "https://files.rcsb.org/download/{}.{}"
 
@@ -69,6 +70,11 @@ def mixed_altloc_residues(structure):
     """Residues whose currently selected atoms come from more than one altloc."""
     return [r for r in structure.get_residues()
             if len({a.get_altloc() for a in r if a.get_altloc() != " "}) > 1]
+
+
+def rel(path):
+    """Path relative to the project root, for printing."""
+    return Path(path).resolve().relative_to(ROOT)
 
 
 def out_path(name):
